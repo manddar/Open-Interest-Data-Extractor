@@ -14,11 +14,19 @@ sess = requests.Session()
 request = sess.get(url_oc, headers=headers, timeout=5)
 cookies = dict(request.cookies)
 response = sess.get(url_nf, headers=headers, timeout=5, cookies=cookies)
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# This code can be used when same cookie is used for frequent calls to option chanin API.
+# if status code is 401 then cookie needs to be refreshed
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
 # if(response.status_code==401):
 #     print("reset cookies")
 #     request = sess.get(url_oc, headers=headers, timeout=5)
 #     cookies = dict(request.cookies)
 #     response = sess.get(url_nf, headers=headers, timeout=5, cookies=cookies)
+
+
 if(response.status_code==200):
     #print(response.text)
     data = json.loads(response.text)

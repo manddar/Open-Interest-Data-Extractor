@@ -18,6 +18,7 @@ response = sess.get(url_nf, headers=headers, timeout=5, cookies=cookies)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # This code can be used when same cookie is used for frequent calls to option chanin API.
 # if status code is 401 then cookie needs to be refreshed
+# (Not needed every time)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # if(response.status_code==401):

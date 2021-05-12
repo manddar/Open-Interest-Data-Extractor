@@ -31,7 +31,7 @@ response = sess.get(url_nf, headers=headers, timeout=5, cookies=cookies)
 if(response.status_code==200):
     #print(response.text)
     data = json.loads(response.text)
-    #print(data['records']['data'])
-    for item in data['records']['data']:
-        if(item['expiryDate']=='06-May-2021'):
-            print(item)
+    print(data['records']['data'])
+    # for item in data['records']['data']:
+    #     if(item['expiryDate']=='20-May-2021'):
+    #         print(item)

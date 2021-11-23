@@ -36,6 +36,7 @@ def set_cookie():
     cookies = dict(request.cookies)
 
 def get_data(url):
+    set_cookie()
     response = sess.get(url, headers=headers, timeout=5, cookies=cookies)
     if(response.status_code==401):
         set_cookie()

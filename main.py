@@ -50,6 +50,7 @@ def set_header():
     global nf_ul
     global bnf_nearest
     global nf_nearest
+
     response_text = get_data(url_indices)
     data = json.loads(response_text)
     for index in data["data"]:
@@ -59,6 +60,7 @@ def set_header():
         if index["index"]=="NIFTY BANK":
             bnf_ul = index["last"]
             print("banknifty")
+    
     bnf_nearest=nearest_strike_bnf(bnf_ul)
     nf_nearest=nearest_strike_nf(nf_ul)
     
@@ -74,6 +76,8 @@ def print_oi(num,step,nearest,url):
     response_text = get_data(url)
     data = json.loads(response_text)
     currExpiryDate = data["records"]["expiryDates"][0]
+    print(strPurple( "Expiry".ljust(12," ") + " =>  ")+strLightPurple(currExpiryDate))
+    print_hr()
     for item in data['records']['data']:
         if item["expiryDate"] == currExpiryDate:
             if item["strikePrice"] == strike and item["strikePrice"] < start_strike+(step*num*2):
@@ -85,7 +89,7 @@ print('\033c')
 print_hr()
 print_header("Nifty",nf_ul,nf_nearest)
 print_hr()
-print_oi(10,50,nf_nearest,url_nf)
+print_oi(5,50,nf_nearest,url_nf)
 print_hr()
 print_header("Bank Nifty",bnf_ul,bnf_nearest)
 print_hr()

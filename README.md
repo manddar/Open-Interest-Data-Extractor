@@ -7,16 +7,16 @@ Data is shown on cconsole in tabular format.
 
 **Before running script**
 
-👉 Install `requests` library
-👉 Stop VPN if you have one, IPs from other countries are blocked (I guess)
+- 👉 Install `requests` library
+- 👉 Stop VPN if you have one, IPs from other countries are blocked (I guess)
 
 
 📋 **Todo:**
 
-👉 Exception handling (if request is timed out, script thorws error on console)
-👉 JSON output
-👉 Restructure code and comment whereever possible
+- 👉 Exception handling (if request is timed out, script thorws error on console)
+- 👉 JSON output
+- 👉 Restructure code and comment whereever possible
 
 💾 **Credit:**
 
-👉 [VarunS2002](https://github.com/VarunS2002/) for his repo [Python-NSE-Option-Chain-Analyzer](https://github.com/VarunS2002/Python-NSE-Option-Chain-Analyzer).
+- 👉 [VarunS2002](https://github.com/VarunS2002/) for his repo [Python-NSE-Option-Chain-Analyzer](https://github.com/VarunS2002/Python-NSE-Option-Chain-Analyzer).

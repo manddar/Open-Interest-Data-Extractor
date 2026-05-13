@@ -1,7 +1,9 @@
-import requests
+import argparse
 import json
 import math
 import sys
+
+import requests
 
 # ── Colour helpers ───────────────────────────────────────────────
 _COLORS = {
@@ -9,8 +11,13 @@ _COLORS = {
     "purple": 95, "cyan": 96, "lgray": 97, "black": 98, "bold": 1,
 }
 
+_ENABLED = True  # toggled off by --no-color / piped output
+
+
 def c(name: str, text: str) -> str:
     """Return *text* wrapped in the ANSI colour *name*."""
+    if not _ENABLED:
+        return text
     code = _COLORS.get(name)
     if code is None:
         return text
@@ -111,7 +118,54 @@ def fetch_indices() -> dict[str, tuple[float, int]]:
     return result
 
 
-# ── Display helpers ──────────────────────────────────────────────
+# ── Data layer ────────────────────────────────────────────────────
+def collect_oi_data(
+    url: str,
+    nearest: int,
+    num_strikes: int,
+    step: int,
+) -> list[dict] | None:
+    """Fetch option-chain data and return a list of strike dicts.
+
+    Each dict::
+        {"strike": int, "ce_oi": int, "pe_oi": int, "expiry": str}
+    Returns None on failure.
+    """
+    data = fetch_json(url)
+    if not data:
+        return None
+
+    records = data.get("records", {})
+    expiry_dates = records.get("expiryDates", [])
+    if not expiry_dates:
+        return None
+
+    curr_expiry = expiry_dates[0]
+
+    start_strike = nearest - (step * num_strikes)
+    end_strike = start_strike + (step * num_strikes * 2)
+    target_strikes = set(range(start_strike, end_strike, step))
+
+    rows: list[dict] = []
+    for item in records.get("data", []):
+        if item.get("expiryDate") != curr_expiry:
+            continue
+        sp = item["strikePrice"]
+        if sp not in target_strikes:
+            continue
+        rows.append({
+            "strike": sp,
+            "ce_oi": item.get("CE", {}).get("openInterest", 0),
+            "pe_oi": item.get("PE", {}).get("openInterest", 0),
+            "expiry": curr_expiry,
+        })
+
+    # sort ascending by strike
+    rows.sort(key=lambda r: r["strike"])
+    return rows
+
+
+# ── Table display ─────────────────────────────────────────────────
 def fmt_oi(value: int) -> str:
     """Format Open Interest with comma separators."""
     return f"{value:>12,}"
@@ -132,59 +186,94 @@ def print_hr() -> None:
 
 
 def print_oi_table(
-    url: str,
     label: str,
     last: float,
     nearest: int,
-    num_strikes: int,
-    step: int,
+    rows: list[dict],
 ) -> None:
-    """Fetch option-chain data and print a coloured OI table."""
+    """Print a coloured OI table from pre-fetched *rows*."""
     print_hr()
     print_header(label, last, nearest)
     print_hr()
 
-    data = fetch_json(url)
-    if not data:
+    if not rows:
         print(c("red", f"[!] No data for {label}"), file=sys.stderr)
         return
 
-    records = data.get("records", {})
-    expiry_dates = records.get("expiryDates", [])
-    if not expiry_dates:
-        print(c("red", "[!] No expiry dates found"), file=sys.stderr)
-        return
-
-    curr_expiry = expiry_dates[0]
-    print(
-        c("purple", "Expiry".ljust(12, " ") + " =>  ")
-        + c("lpurple", curr_expiry)
-    )
+    expiry = rows[0]["expiry"]
+    print(c("purple", "Expiry".ljust(12, " ") + " =>  ") + c("lpurple", expiry))
     print_hr()
 
-    start_strike = nearest - (step * num_strikes)
-    end_strike = start_strike + (step * num_strikes * 2)
-    target_strikes = set(range(start_strike, end_strike, step))
-
-    for item in records.get("data", []):
-        if item.get("expiryDate") != curr_expiry:
-            continue
-        sp = item["strikePrice"]
-        if sp not in target_strikes:
-            continue
-        ce_oi = item.get("CE", {}).get("openInterest", 0)
-        pe_oi = item.get("PE", {}).get("openInterest", 0)
+    for row in rows:
         print(
-            c("cyan", str(sp).rjust(7))
+            c("cyan", str(row["strike"]).rjust(7))
             + c("green", " CE ")
-            + "[ " + bold(fmt_oi(ce_oi)) + " ]"
+            + "[ " + bold(fmt_oi(row["ce_oi"])) + " ]"
             + c("red", " PE ")
-            + "[ " + bold(fmt_oi(pe_oi)) + " ]"
+            + "[ " + bold(fmt_oi(row["pe_oi"])) + " ]"
         )
 
 
-# ── Main ──────────────────────────────────────────────────────────
+# ── Index config ──────────────────────────────────────────────────
+INDEX_CONFIG = {
+    "nifty": {
+        "url": URL_NF,
+        "label": "Nifty",
+        "num_strikes": 5,
+        "step": 50,
+    },
+    "banknifty": {
+        "url": URL_BNF,
+        "label": "Bank Nifty",
+        "num_strikes": 10,
+        "step": 100,
+    },
+}
+
+
+# ── CLI ───────────────────────────────────────────────────────────
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Fetch NSE option-chain Open Interest data.",
+    )
+    parser.add_argument(
+        "-s", "--symbol",
+        choices=["nifty", "banknifty", "both"],
+        default="both",
+        help="Index to fetch (default: both)",
+    )
+    parser.add_argument(
+        "-n", "--strikes",
+        type=int,
+        default=None,
+        help="Number of strikes above/below ATM (overrides per-index default)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output raw JSON instead of the coloured table (implies --no-color)",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Strip ANSI colour codes from output",
+    )
+    parser.add_argument(
+        "--pretty",
+        action="store_true",
+        help="When used with --json, indent the output",
+    )
+    return parser
+
+
 def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    global _ENABLED
+    if args.no_color or args.json:
+        _ENABLED = False
+
     _prime_session()
 
     indices = fetch_indices()
@@ -192,16 +281,50 @@ def main() -> None:
         print(c("red", "[!] Could not fetch index data. Exiting."), file=sys.stderr)
         sys.exit(1)
 
-    last_nf, near_nf = indices.get("Nifty", (0, 0))
-    last_bnf, near_bnf = indices.get("Bank Nifty", (0, 0))
+    # Pick which indices to process
+    symbols = ["nifty", "banknifty"] if args.symbol == "both" else [args.symbol]
 
+    # Collect data for each symbol
+    all_data: list[dict] = []
+    for sym in symbols:
+        cfg = INDEX_CONFIG[sym]
+        label = cfg["label"]
+        ul, near = indices.get(label, (0, 0))
+        if ul == 0:
+            print(c("red", f"[!] Could not fetch spot price for {label}"), file=sys.stderr)
+            continue
+
+        num_strikes = args.strikes if args.strikes is not None else cfg["num_strikes"]
+
+        rows = collect_oi_data(cfg["url"], near, num_strikes, cfg["step"])
+        all_data.append({
+            "symbol": label,
+            "last_price": ul,
+            "nearest_strike": near,
+            "rows": rows or [],
+        })
+
+    # ── Output ────────────────────────────────────────────────
+    if args.json:
+        print(
+            json.dumps(
+                {"data": all_data},
+                indent=2 if args.pretty else None,
+                default=str,
+            )
+        )
+        return
+
+    # Table mode
     print("\033c", end="")  # clear screen
-    print_oi_table(URL_NF, "Nifty", last_nf, near_nf, num_strikes=5, step=50)
-    print_hr()
-    print_oi_table(
-        URL_BNF, "Bank Nifty", last_bnf, near_bnf, num_strikes=10, step=100
-    )
-    print_hr()
+    for entry in all_data:
+        print_oi_table(
+            label=entry["symbol"],
+            last=entry["last_price"],
+            nearest=entry["nearest_strike"],
+            rows=entry["rows"],
+        )
+        print_hr()
 
 
 if __name__ == "__main__":

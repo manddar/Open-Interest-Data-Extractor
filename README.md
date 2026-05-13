@@ -17,24 +17,37 @@ pip install requests
 ## Usage
 
 ```bash
-python main.py
+python main.py                  # both indices, table output
+python main.py -s nifty         # NIFTY only
+python main.py -s banknifty     # BANKNIFTY only
+python main.py -n 8             # 8 strikes above/below ATM (overrides default)
+python main.py --json           # raw JSON output (pipe to jq, etc.)
+python main.py --json --pretty  # indented JSON
+python main.py --no-color       # plain text, no ANSI codes
+python main.py --help           # full flag reference
 ```
 
-### What you'll see
+### CLI flags
 
-```
-----------------------------------------------------------------------
-Purple      => Last Price: 12345 Nearest Strike: 12350
-----------------------------------------------------------------------
-Expiry      => 30MAY2026
-----------------------------------------------------------------------
-   12350 CE [     123,456 ] PE [     789,012 ]
-   12400 CE [      98,765 ] PE [     654,321 ]
-   ...
-```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-s`, `--symbol` | `both` | Index to fetch: `nifty`, `banknifty`, or `both` |
+| `-n`, `--strikes` | *per-index* | Number of strikes above/below ATM (Nifty: 5, BNF: 10) |
+| `--json` | off | Output raw JSON instead of the coloured table |
+| `--pretty` | off | Indent JSON output (only with `--json`) |
+| `--no-color` | off | Strip ANSI colour codes from terminal output |
 
-- **CE OI** is shown in green, **PE OI** in red — quick comparison at a glance.
-- Open Interest values are comma-formatted for readability.
+### Example: pipe JSON into another tool
+
+```bash
+python main.py -s nifty --json --pretty | jq '.data[0].rows[:3]'
+python main.py --json | python -c "
+import sys, json
+data = json.load(sys.stdin)
+for idx in data['data']:
+    print(idx['symbol'], sum(r['ce_oi'] + r['pe_oi'] for r in idx['rows']))
+"
+```
 
 ## What's Changed
 
@@ -51,11 +64,8 @@ This branch addresses the original TODOs and a few bugs:
 | ✅ Globals declared | Module-level variables are explicitly declared. |
 | ✅ OI formatting | Values now display with comma separators (e.g., `123,456`). |
 | ✅ Named constants | `num_strikes=5`, `step=50` are keyword arguments instead of magic numbers. |
-
-### Still TODO
-
-- JSON output mode (`--json` flag)
-- CLI argument parsing for symbol selection and row count
+| ✅ CLI arguments | `--symbol`, `--strikes`, `--json`, `--pretty`, `--no-color` via `argparse`. |
+| ✅ JSON output | `--json` flag dumps raw option-chain data as JSON for pipelines. |
 
 ## Credits
 
